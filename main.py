@@ -9,18 +9,28 @@ from datetime import datetime
 # ==========================================
 def get_golf_dio():
     try:
-        print("🔍 正在獲取 GOLF 財報數據...")
+        print("🔍 正在獲取 GOLF 財報數據 (TTM 模式)...")
         golf = yf.Ticker("GOLF")
         bs = golf.quarterly_balance_sheet
         inc = golf.quarterly_income_stmt
         
+        # 1. 取得最新一季的「期末存貨」(代表當下倉庫真實的壓力)
         latest_inventory = bs.loc['Inventory'].iloc[0]
-        latest_cogs = inc.loc['Cost Of Revenue'].iloc[0]
         
-        # DIO 計算公式：(存貨 / 營業成本) * 90天
-        dio = (latest_inventory / latest_cogs) * 90
-        print(f"✅ 取得 GOLF 最新 DIO: {round(dio, 1)} 天")
-        return round(dio, 1)
+        # 2. 取得「過去四個季度」的營業成本總和 (TTM COGS，消除淡旺季干擾)
+        # 確保有 4 季的數據可以加總
+        if len(inc.columns) >= 4:
+            ttm_cogs = inc.loc['Cost Of Revenue'].iloc[0:4].sum()
+        else:
+            print("⚠️ 季度數據不足，無法計算 TTM。")
+            return None
+            
+        # 3. 計算 TTM DIO = (最新存貨 / TTM 營業成本) * 365天
+        dio_ttm = (latest_inventory / ttm_cogs) * 365
+        
+        print(f"✅ 取得 GOLF 經 TTM 修正的最新 DIO: {round(dio_ttm, 1)} 天")
+        return round(dio_ttm, 1)
+        
     except Exception as e:
         print(f"❌ 獲取 GOLF 財報失敗: {e}")
         return None
