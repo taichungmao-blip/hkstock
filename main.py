@@ -31,7 +31,7 @@ def get_golf_dio():
 def get_golf_export_yoy():
     # ⚠️ 實務提醒：由於財政部「綜合查詢」的網址帶有會過期的 Session
     # 若掛在雲端排程，建議您每月初手動下載此 CSV 後，推送到同一個 GitHub 資料夾覆蓋舊檔。
-    file_path = '綜合查詢_.csv'
+    file_path = '綜合查詢_20260412214015.csv'
     
     try:
         print("🔍 正在解析海關微觀數據...")
