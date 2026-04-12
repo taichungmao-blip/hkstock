@@ -35,7 +35,14 @@ def get_golf_export_yoy():
     
     try:
         print("🔍 正在解析海關微觀數據...")
-        df = pd.read_csv(file_path, encoding='utf-8-sig')
+   
+        # 加入編碼雙保險機制
+        try:
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+        except UnicodeDecodeError:
+            print("⚠️ 偵測到 Big5 編碼，正在切換解讀模式...")
+            df = pd.read_csv(file_path, encoding='big5')
+      
         
         # 篩選美國終端市場
         df_us = df[df['國家'] == '美國'].copy()
