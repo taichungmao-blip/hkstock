@@ -4,12 +4,11 @@ import matplotlib.pyplot as plt
 import requests
 import io
 import os
-import sys
 import time
 import warnings
 from deep_translator import GoogleTranslator
 
-# 忽略警告
+# 忽略 pandas 未來版本的警告[cite: 1]
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
@@ -25,14 +24,16 @@ def get_company_details(ticker, close_price):
     try:
         ticker_obj = yf.Ticker(ticker)
         info = ticker_obj.info
-        name = info.get('shortName', info.get('longName', ticker))
+        company_name = info.get('shortName', info.get('longName', ticker))
         sector = info.get('sector', 'Unknown')
         pe = f"{info.get('trailingPE', 0):.2f}" if isinstance(info.get('trailingPE'), (int, float)) else "N/A"
         raw_yield = info.get('dividendYield')
         div = f"{raw_yield * 100:.2f}%" if isinstance(raw_yield, (int, float)) else "N/A"
-        summary = GoogleTranslator(source='auto', target='zh-TW').translate(info.get('longBusinessSummary', '')[:300]) + "..."
-        return summary, pe, div, name, sector
-    except: return "暫無簡介", "N/A", "N/A", ticker, "Unknown"
+        summary_en = info.get('longBusinessSummary', '')[:300]
+        summary_zh = GoogleTranslator(source='auto', target='zh-TW').translate(summary_en) + "..."
+        return summary_zh, pe, div, company_name, sector
+    except:
+        return "暫無簡介", "N/A", "N/A", ticker, "Unknown"
 
 def send_to_discord(ticker, name, sector, price, pct, img, summary, pe, div):
     emoji, trend = ("📈", "漲幅") if pct > 0 else ("📉", "跌幅")
@@ -56,53 +57,34 @@ def process_and_send_list(series, title, color):
         except: continue
 
 def main():
-    # 擴展至 300 檔代表性港股 (此處簡化示意，實際使用時可填入完整代號清單)
-    hk_codes = [
-        '0001', '0002', '0003', '0004', '0005', '0006', '0008', '0010', '0011', '0012',
-        '0014', '0016', '0017', '0019', '0020', '0023', '0027', '0054', '0066', '0069',
-        '0083', '0101', '0116', '0119', '0123', '0135', '0144', '0151', '0152', '0168',
-        '0173', '0175', '0189', '0200', '0214', '0215', '0241', '0256', '0257', '0267',
-        '0268', '0270', '0272', '0285', '0288', '0291', '0303', '0315', '0316', '0322',
-        '0338', '0345', '0354', '0358', '0371', '0384', '0386', '0388', '0390', '0392',
-        '0410', '0460', '0468', '0512', '0522', '0552', '0570', '0586', '0590', '0598',
-        '0604', '0639', '0656', '0658', '0669', '0670', '0683', '0688', '0694', '0696',
-        '0699', '0700', '0728', '0732', '0753', '0762', '0763', '0772', '0778', '0813',
-        '0817', '0823', '0836', '0839', '0853', '0857', '0868', '0874', '0880', '0883',
-        '0902', '0914', '0916', '0934', '0939', '0941', '0956', '0960', '0968', '0981',
-        '0992', '0998', '1024', '1038', '1044', '1052', '1060', '1066', '1088', '1093',
-        '1099', '1109', '1113', '1119', '1128', '1138', '1157', '1171', '1177', '1179',
-        '1193', '1209', '1211', '1258', '1288', '1299', '1308', '1310', '1313', '1316',
-        '1336', '1339', '1347', '1359', '1368', '1378', '1398', '1516', '1521', '1528',
-        '1530', '1548', '1579', '1585', '1610', '1658', '1772', '1776', '1787', '1789',
-        '1801', '1810', '1816', '1833', '1876', '1888', '1898', '1919', '1928', '1929',
-        '1951', '1958', '1997', '1999', '2005', '2007', '2013', '2015', '2018', '2020',
-        '2158', '2192', '2202', '2238', '2269', '2313', '2314', '2318', '2319', '2328',
-        '2331', '2333', '2338', '2359', '2380', '2382', '2388', '2600', '2602', '2618',
-        '2628', '2688', '2727', '2866', '2883', '2888', '2899', '3308', '3311', '3319',
-        '3320', '3323', '3328', '3333', '3339', '3606', '3618', '3690', '3692', '3800',
-        '3808', '3868', '3888', '3898', '3908', '3968', '3988', '3990', '6030', '6049',
-        '6060', '6066', '6088', '6098', '6110', '6160', '6185', '6618', '6690', '6808',
-        '6823', '6837', '6862', '6865', '6881', '6969', '6993', '9618', '9626', '9633',
-        '9698', '9866', '9868', '9888', '9898', '9922', '9961', '9987', '9988', '9992',
-        '9999'
+    # 穩定且高流動性的港股權值股清單[cite: 1, 2]
+    HK_TICKERS = [
+        "0001.HK", "0002.HK", "0003.HK", "0005.HK", "0006.HK", "0008.HK", "0012.HK", "0016.HK", "0017.HK", "0019.HK",
+        "0027.HK", "0066.HK", "0069.HK", "0101.HK", "0151.HK", "0175.HK", "0241.HK", "0267.HK", "0288.HK", "0386.HK",
+        "0388.HK", "0669.HK", "0688.HK", "0700.HK", "0762.HK", "0823.HK", "0857.HK", "0883.HK", "0939.HK", "0941.HK",
+        "0960.HK", "0968.HK", "0981.HK", "0992.HK", "1038.HK", "1044.HK", "1088.HK", "1093.HK", "1113.HK", "1211.HK",
+        "1299.HK", "1398.HK", "1810.HK", "1928.HK", "2015.HK", "2269.HK", "2318.HK", "2319.HK", "2331.HK", "2382.HK",
+        "2388.HK", "2628.HK", "3690.HK", "3968.HK", "3988.HK", "6098.HK", "6690.HK", "6862.HK", "9618.HK", "9633.HK",
+        "9888.HK", "9988.HK", "9999.HK", "0235.HK", "0384.HK", "0493.HK", "0670.HK", "0753.HK", "0772.HK", "0836.HK",
+        "0868.HK", "0880.HK", "0902.HK", "0914.HK", "0916.HK", "1066.HK", "1109.HK", "1177.HK", "1209.HK", "1336.HK",
+        "1347.HK", "1378.HK", "1548.HK", "1579.HK", "1772.HK", "1801.HK", "1888.HK", "1929.HK", "1958.HK", "1997.HK",
+        "2018.HK", "2202.HK", "2313.HK", "2333.HK", "2380.HK", "2618.HK", "2899.HK", "3692.HK", "3808.HK", "6060.HK"
     ]
-    tickers = [f"{code}.HK" for code in hk_codes]
     
-    # 分批下載
-    all_data = pd.DataFrame()
-    for i in range(0, len(tickers), 50):
-        batch = tickers[i:i+50]
-        batch_data = yf.download(batch, period="10d", progress=False)['Close']
-        all_data = pd.concat([all_data, batch_data], axis=1)
-        
-    if all_data.empty: return
+    data = yf.download(HK_TICKERS, period="10d", progress=False, group_by='ticker')['Close']
     
-    last_two = all_data.dropna(how='all').tail(2)
+    # 計算漲跌幅[cite: 1, 2]
+    last_two = data.dropna(how='all').tail(2)
     if len(last_two) < 2:
-        requests.post(WEBHOOK_URL, json={"content": "⚠️ 市場休市，無最新漲跌資料。"})
+        requests.post(WEBHOOK_URL, json={"content": "⚠️ 目前市場休市，無最新漲跌資料可計算。"})
         return
         
     returns = last_two.pct_change(fill_method=None).iloc[-1].dropna()
+    
+    if returns.empty:
+        requests.post(WEBHOOK_URL, json={"content": "⚠️ 無法計算漲跌幅，可能是因為資料缺失。"})
+        return
+    
     process_and_send_list(returns.nlargest(10), "今日 港股漲幅前十名", '#1f77b4')
     process_and_send_list(returns.nsmallest(10), "今日 港股跌幅最重前十名", 'green')
 
