@@ -56,9 +56,15 @@ def process_and_send_list(series, title, color):
             else:
                 close_series = data['Close'] if 'Close' in data.columns else data.iloc[:, 0]
 
+            # 提前獲取公司詳細資訊與名稱，以便將名稱放入圖片標題中
+            sum_zh, pe, div, name, sec = get_company_details(ticker, close_series.iloc[-1])
+
+            # 開始繪製圖表
             plt.figure(figsize=(10, 5))
             plt.plot(close_series.index, close_series, color=color, linewidth=1.5)
-            plt.title(f"{ticker} Trend", fontsize=14)
+            
+            # 【關鍵修改】在圖片標題內同時寫入代號與股票名稱
+            plt.title(f"{ticker} {name} - 1 Year Trend", fontsize=14)
             plt.grid(True, linestyle='--', alpha=0.5)
             plt.tight_layout()
             
@@ -66,7 +72,7 @@ def process_and_send_list(series, title, color):
             plt.savefig(buf, format='png')
             plt.close()
             
-            sum_zh, pe, div, name, sec = get_company_details(ticker, close_series.iloc[-1])
+            # 發送至 Discord
             send_to_discord(ticker, name, sec, close_series.iloc[-1], pct, buf, sum_zh, pe, div)
             time.sleep(2)
         except Exception as e:
@@ -93,7 +99,6 @@ def main():
     if data.empty:
         return
 
-    # 確保正確解析 Yahoo Finance 格式
     try:
         close_data = data['Close']
     except KeyError:
