@@ -8,7 +8,7 @@ import time
 import warnings
 from deep_translator import GoogleTranslator
 
-# 忽略 pandas 未來版本的警告[cite: 1]
+# 忽略 pandas 未來版本的警告
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
@@ -47,17 +47,33 @@ def process_and_send_list(series, title, color):
     requests.post(WEBHOOK_URL, json={"content": f"📊 **{title}** 📊"})
     for ticker, pct in series.items():
         try:
-            data = yf.download(ticker, period="9mo", progress=False)['Close']
+            data = yf.download(ticker, period="9mo", progress=False)
             if data.empty: continue
-            plt.figure(figsize=(10, 5)); plt.plot(data.index, data, color=color)
-            plt.title(f"{ticker} Trend", fontsize=14); buf = io.BytesIO(); plt.savefig(buf, format='png'); plt.close()
-            sum, pe, div, name, sec = get_company_details(ticker, data.iloc[-1])
-            send_to_discord(ticker, name, sec, data.iloc[-1], pct, buf, sum, pe, div)
+            
+            # 單一股票下載時，確保正確抓取收盤價序列
+            if isinstance(data.columns, pd.MultiIndex):
+                close_series = data['Close'][ticker] if 'Close' in data.columns else data.iloc[:, 0]
+            else:
+                close_series = data['Close'] if 'Close' in data.columns else data.iloc[:, 0]
+
+            plt.figure(figsize=(10, 5))
+            plt.plot(close_series.index, close_series, color=color, linewidth=1.5)
+            plt.title(f"{ticker} Trend", fontsize=14)
+            plt.grid(True, linestyle='--', alpha=0.5)
+            plt.tight_layout()
+            
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png')
+            plt.close()
+            
+            sum_zh, pe, div, name, sec = get_company_details(ticker, close_series.iloc[-1])
+            send_to_discord(ticker, name, sec, close_series.iloc[-1], pct, buf, sum_zh, pe, div)
             time.sleep(2)
-        except: continue
+        except Exception as e:
+            print(f"處理 {ticker} 發生錯誤: {e}")
+            continue
 
 def main():
-    # 穩定且高流動性的港股權值股清單[cite: 1, 2]
     HK_TICKERS = [
         "0001.HK", "0002.HK", "0003.HK", "0005.HK", "0006.HK", "0008.HK", "0012.HK", "0016.HK", "0017.HK", "0019.HK",
         "0027.HK", "0066.HK", "0069.HK", "0101.HK", "0151.HK", "0175.HK", "0241.HK", "0267.HK", "0288.HK", "0386.HK",
@@ -71,10 +87,22 @@ def main():
         "2018.HK", "2202.HK", "2313.HK", "2333.HK", "2380.HK", "2618.HK", "2899.HK", "3692.HK", "3808.HK", "6060.HK"
     ]
     
-    data = yf.download(HK_TICKERS, period="10d", progress=False, group_by='ticker')['Close']
+    print(f"正在下載 {len(HK_TICKERS)} 檔港股股價...")
+    data = yf.download(HK_TICKERS, period="10d", progress=False)
     
-    # 計算漲跌幅[cite: 1, 2]
-    last_two = data.dropna(how='all').tail(2)
+    if data.empty:
+        return
+
+    # 確保正確解析 Yahoo Finance 格式
+    try:
+        close_data = data['Close']
+    except KeyError:
+        try:
+            close_data = data.xs('Close', level=0, axis=1)
+        except KeyError:
+            close_data = data
+
+    last_two = close_data.dropna(how='all').tail(2)
     if len(last_two) < 2:
         requests.post(WEBHOOK_URL, json={"content": "⚠️ 目前市場休市，無最新漲跌資料可計算。"})
         return
