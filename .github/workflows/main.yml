@@ -3,7 +3,7 @@ name: Hang Seng Index Daily Tracker
 on:
   schedule:
     # 這裡使用 UTC 時間。UTC 09:00 = 台灣時間 17:00 (每週一到週五)
-    - cron: '0 9 * * 1-5'
+    - cron: '0 7 * * 1-5'
   workflow_dispatch: 
 
 jobs:
